@@ -4,4 +4,10 @@
     	 <rosparam command="load" file="$(find elevation_mapping_demos)/config/elevation_maps/long_range.yaml" />
     	 <rosparam command="load" file="$(find elevation_mapping)/config/sensor_processors/perfect.yaml" />
     </node>
+
+    <!-- Launch visualizations for the resulting elevation map -->
+    <include file="$(find elevation_mapping_demos)/launch/visualization.launch" />
+
+    <!-- Launch RViz with the demo configuration -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find elevation_mapping_demos)/rviz/elevation_map_visualization.rviz" />
 </launch>

@@ -1,7 +1,7 @@
-point_cloud_topic: "/ground_truth"
+point_cloud_topic: "/r1/slam/odom/high/cloud"
 map_frame_id: "map"
 robot_base_frame_id: "map"
-robot_pose_with_covariance_topic: "/ground_truth_pose"
+robot_pose_with_covariance_topic: "/r1/slam/odom/high/pose_with_cov"
 robot_pose_cache_size: 500
 track_point_frame_id: "map"
 track_point_x: 0.0
