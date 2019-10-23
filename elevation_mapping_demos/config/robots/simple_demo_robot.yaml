@@ -1,9 +1,12 @@
-point_cloud_topic: "/r1/slam/odom/high/cloud"
+#point_cloud_topic: "/r1/slam/odom/high/cloud"
+point_cloud_topic: "/r1/heightmap"
+
+sensor_frame_id: "odom"
 map_frame_id: "map"
-robot_base_frame_id: "r1/slam_base_link"
+robot_base_frame_id: "base_link"
 robot_pose_with_covariance_topic: "/r1/slam/odom/high/pose_with_cov"
 robot_pose_cache_size: 200
-track_point_frame_id: "r1/slam_base_link"
+track_point_frame_id: "base_link"
 track_point_x: 0.0
 track_point_y: 0.0
 track_point_z: 0.0

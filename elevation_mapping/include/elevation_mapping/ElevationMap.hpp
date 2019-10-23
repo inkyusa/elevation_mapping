@@ -68,6 +68,16 @@ class ElevationMap
            const ros::Time& timeStamp, const Eigen::Affine3d& transformationSensorToMap);
 
   /*!
+   * Add new measurements to the elevation map without sensor to map frame transformation.
+   * @param pointCloud the point cloud data in odom frame (i.e., already registered point cloud)
+   * @param pointCloudVariances the corresponding variances of the point cloud data.
+   * @param timeStamp the time of the input point cloud.
+   * @return true if successful.
+   */
+  bool add_wo_transform(const pcl::PointCloud<pcl::PointXYZ>::Ptr pointCloud, Eigen::VectorXf& pointCloudVariances, 
+    const ros::Time& timestamp);
+
+  /*!
    * Update the elevation map with variance update data.
    * @param varianceUpdate the variance update in vertical direction.
    * @param horizontalVarianceUpdateX the variance update in horizontal x-direction.

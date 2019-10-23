@@ -1,4 +1,5 @@
-point_cloud_topic: "/r1/slam/odom/high/cloud"
+#point_cloud_topic: "/r1/slam/odom/high/cloud"
+point_cloud_topic: "/r1/heightmap"
 map_frame_id: "map"
 robot_base_frame_id: "map"
 robot_pose_with_covariance_topic: "/r1/slam/odom/high/pose_with_cov"

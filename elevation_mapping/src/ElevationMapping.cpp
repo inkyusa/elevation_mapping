@@ -273,7 +273,7 @@ void ElevationMapping::pointCloudCallback(
   pcl::PCLPointCloud2 pcl_pc;
   pcl_conversions::toPCL(rawPointCloud, pcl_pc);
 
-  PointCloud<PointXYZRGB>::Ptr pointCloud(new PointCloud<PointXYZRGB>);
+  PointCloud<PointXYZ>::Ptr pointCloud(new PointCloud<PointXYZ>);
   pcl::fromPCLPointCloud2(pcl_pc, *pointCloud);
   lastPointCloudUpdateTime_.fromNSec(1000 * pointCloud->header.stamp);
 
@@ -307,17 +307,26 @@ void ElevationMapping::pointCloudCallback(
   }
 
   // Process point cloud.
-  PointCloud<PointXYZRGB>::Ptr pointCloudProcessed(new PointCloud<PointXYZRGB>);
+  PointCloud<PointXYZ>::Ptr pointCloudProcessed(new PointCloud<PointXYZ>);
   Eigen::VectorXf measurementVariances;
-  if (!sensorProcessor_->process(pointCloud, robotPoseCovariance, pointCloudProcessed,
-                                 measurementVariances)) {
-    ROS_ERROR("Point cloud could not be processed.");
-    resetMapUpdateTimer();
-    return;
-  }
+  // if (!sensorProcessor_->process(pointCloud, robotPoseCovariance, pointCloudProcessed,
+  //                                measurementVariances)) {
+  //   ROS_ERROR("Point cloud could not be processed.");
+  //   resetMapUpdateTimer();
+  //   return;
+  // }
+  copyPointCloud(*pointCloud,*pointCloudProcessed);
+  //std::cout<<"pointCloudProcessed->size()="<<pointCloudProcessed->size()<<std::endl;
 
+  //for (int i=0;i<pointCloud->size();i++) std::cout<<"x= "<<pointCloud->points[i].x<<"  y= "<<pointCloud->points[i].y<<"  z= "<<pointCloud->points[i].z<<std::endl;
+
+  measurementVariances.resize(pointCloud->size());
+  for (size_t i = 0; i < pointCloud->size(); ++i) measurementVariances(i) = 0;
+
+  ROS_INFO("lastPointCloudUpdateTime_.toSec()=%f",lastPointCloudUpdateTime_.toSec());
   // Add point cloud to elevation map.
-  if (!map_.add(pointCloudProcessed, measurementVariances, lastPointCloudUpdateTime_, Eigen::Affine3d(sensorProcessor_->transformationSensorToMap_))) {
+  //if (!map_.add(pointCloudProcessed, measurementVariances, lastPointCloudUpdateTime_, Eigen::Affine3d(sensorProcessor_->transformationSensorToMap_))) {
+  if (!map_.add_wo_transform(pointCloudProcessed, measurementVariances, lastPointCloudUpdateTime_)) {
     ROS_ERROR("Adding point cloud to elevation map failed.");
     resetMapUpdateTimer();
     return;

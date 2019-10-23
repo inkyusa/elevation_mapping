@@ -160,6 +160,107 @@ bool ElevationMap::add(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud, 
   return true;
 }
 
+bool ElevationMap::add_wo_transform(const pcl::PointCloud<pcl::PointXYZ>::Ptr pointCloud, Eigen::VectorXf& pointCloudVariances, const ros::Time& timestamp)
+{
+  if (pointCloud->size() != pointCloudVariances.size()) {
+    ROS_ERROR("ElevationMap::add: Size of point cloud (%i) and variances (%i) do not agree.",
+              (int) pointCloud->size(), (int) pointCloudVariances.size());
+    return false;
+  }
+
+  // Initialization for time calculation.
+  const ros::WallTime methodStartTime(ros::WallTime::now());
+  boost::recursive_mutex::scoped_lock scopedLockForRawData(rawMapMutex_);
+
+  // Update initial time if it is not initialized.
+  if (initialTime_.toSec() == 0) {
+    initialTime_ = timestamp;
+  }
+  const double scanTimeSinceInitialization = (timestamp - initialTime_).toSec();
+
+  std::cout<<"pointCloud->size()="<<pointCloud->size()<<std::endl;
+
+  for (unsigned int i = 0; i < pointCloud->size(); ++i) {
+    auto& point = pointCloud->points[i];
+    //std::cout<<"point.x="<<point.x<<"  point.y="<<point.y<<"  point.z="<<point.z<<std::endl;
+    Index index;
+    Position position(point.x, point.y);
+    if (!rawMap_.getIndex(position, index)) continue; // Skip this point if it does not lie within the elevation map.
+    //std::cout<<"index="<<index<<std::endl;
+
+    auto& elevation = rawMap_.at("elevation", index);
+    auto& variance = rawMap_.at("variance", index);
+    auto& horizontalVarianceX = rawMap_.at("horizontal_variance_x", index);
+    auto& horizontalVarianceY = rawMap_.at("horizontal_variance_y", index);
+    auto& horizontalVarianceXY = rawMap_.at("horizontal_variance_xy", index);
+    auto& color = rawMap_.at("color", index);
+    auto& time = rawMap_.at("time", index);
+    auto& lowestScanPoint = rawMap_.at("lowest_scan_point", index);
+    auto& sensorXatLowestScan = rawMap_.at("sensor_x_at_lowest_scan", index);
+    auto& sensorYatLowestScan = rawMap_.at("sensor_y_at_lowest_scan", index);
+    auto& sensorZatLowestScan = rawMap_.at("sensor_z_at_lowest_scan", index);
+
+    const float& pointVariance = pointCloudVariances(i);
+    const float scanTimeSinceInitialization = (timestamp - initialTime_).toSec();
+
+    if (!rawMap_.isValid(index)) {
+      // No prior information in elevation map, use measurement.
+      elevation = point.z;
+      variance = pointVariance;
+      horizontalVarianceX = minHorizontalVariance_;
+      horizontalVarianceY = minHorizontalVariance_;
+      horizontalVarianceXY = 0.0;
+      //colorVectorToValue(point.getRGBVector3i(), color);
+      continue;
+    }
+
+    // Deal with multiple heights in one cell.
+    const double mahalanobisDistance = fabs(point.z - elevation) / sqrt(variance);
+    if (mahalanobisDistance > mahalanobisDistanceThreshold_) {
+      if (scanTimeSinceInitialization - time <= scanningDuration_ && elevation > point.z) {
+        // Ignore point if measurement is from the same point cloud (time comparison) and
+        // if measurement is lower then the elevation in the map.
+      } else if (scanTimeSinceInitialization - time <= scanningDuration_) {
+        // If point is higher.
+        elevation = point.z;
+        variance = pointVariance;
+      } else {
+        variance += multiHeightNoise_;
+      }
+      continue;
+    }
+
+    // // Store lowest points from scan for visibility checking.
+    // const float pointHeightPlusUncertainty = point.z + 3.0 * sqrt(pointVariance); // 3 sigma.
+    // if (std::isnan(lowestScanPoint) || pointHeightPlusUncertainty < lowestScanPoint){
+    //   lowestScanPoint = pointHeightPlusUncertainty;
+    //   const Position3 sensorTranslation(transformationSensorToMap.translation());
+    //   sensorXatLowestScan = sensorTranslation.x();
+    //   sensorYatLowestScan = sensorTranslation.y();
+    //   sensorZatLowestScan = sensorTranslation.z();
+    // }
+
+    // Fuse measurement with elevation map data.
+    elevation = (variance * point.z + pointVariance * elevation) / (variance + pointVariance);
+    variance = (pointVariance * variance) / (pointVariance + variance);
+    // TODO Add color fusion.
+    //colorVectorToValue(point.getRGBVector3i(), color);
+    time = scanTimeSinceInitialization;
+
+    // Horizontal variances are reset.
+    horizontalVarianceX = minHorizontalVariance_;
+    horizontalVarianceY = minHorizontalVariance_;
+    horizontalVarianceXY = 0.0;
+  }
+
+  clean();
+  rawMap_.setTimestamp(timestamp.toNSec()); // Point cloud stores time in microseconds.
+
+  const ros::WallDuration duration = ros::WallTime::now() - methodStartTime;
+  ROS_INFO("Raw map has been updated with a new point cloud in %f s.", duration.toSec());
+  return true;
+}
+
 bool ElevationMap::update(const grid_map::Matrix& varianceUpdate, const grid_map::Matrix& horizontalVarianceUpdateX,
                           const grid_map::Matrix& horizontalVarianceUpdateY,
                           const grid_map::Matrix& horizontalVarianceUpdateXY, const ros::Time& time)
