@@ -34,7 +34,8 @@ ElevationMap::ElevationMap(ros::NodeHandle nodeHandle)
       rawMap_({"elevation", "variance", "horizontal_variance_x", "horizontal_variance_y", "horizontal_variance_xy", "color", "time", "lowest_scan_point", "sensor_x_at_lowest_scan", "sensor_y_at_lowest_scan", "sensor_z_at_lowest_scan"}),
       fusedMap_({"elevation", "upper_bound", "lower_bound", "color"}),
       hasUnderlyingMap_(false),
-      visibilityCleanupDuration_(0.0)
+      visibilityCleanupDuration_(0.0),
+      filterChain_("grid_map::GridMap")
 {
   rawMap_.setBasicLayers({"elevation", "variance"});
   fusedMap_.setBasicLayers({"elevation", "upper_bound", "lower_bound"});
@@ -42,11 +43,18 @@ ElevationMap::ElevationMap(ros::NodeHandle nodeHandle)
 
   elevationMapRawPublisher_ = nodeHandle_.advertise<grid_map_msgs::GridMap>("elevation_map_raw", 1);
   elevationMapFusedPublisher_ = nodeHandle_.advertise<grid_map_msgs::GridMap>("elevation_map", 1);
+  occupancyPublisher_ = nodeHandle_.advertise<nav_msgs::OccupancyGrid>("my_occupancy", 1);
   if (!underlyingMapTopic_.empty()) underlyingMapSubscriber_ =
       nodeHandle_.subscribe(underlyingMapTopic_, 1, &ElevationMap::underlyingMapCallback, this);
   // TODO if (enableVisibilityCleanup_) when parameter cleanup is ready.
   visbilityCleanupMapPublisher_ = nodeHandle_.advertise<grid_map_msgs::GridMap>("visibility_cleanup_map", 1);
 
+  // Setup filter chain.
+  if (!filterChain_.configure(filterChainParametersName_, nodeHandle)) {
+    ROS_ERROR("Could not configure the filter chain!");
+    //success = false;
+    //return;
+  }
   initialTime_ = ros::Time::now();
 }
 
@@ -178,14 +186,17 @@ bool ElevationMap::add_wo_transform(const pcl::PointCloud<pcl::PointXYZ>::Ptr po
   }
   const double scanTimeSinceInitialization = (timestamp - initialTime_).toSec();
 
-  std::cout<<"pointCloud->size()="<<pointCloud->size()<<std::endl;
+  //std::cout<<"pointCloud->size()="<<pointCloud->size()<<std::endl;
 
   for (unsigned int i = 0; i < pointCloud->size(); ++i) {
     auto& point = pointCloud->points[i];
     //std::cout<<"point.x="<<point.x<<"  point.y="<<point.y<<"  point.z="<<point.z<<std::endl;
     Index index;
     Position position(point.x, point.y);
-    if (!rawMap_.getIndex(position, index)) continue; // Skip this point if it does not lie within the elevation map.
+    if (!rawMap_.getIndex(position, index)) {
+      //ROS_INFO("can't get index[%d] for point.x=%0.3f point.y=%0.3f",i,point.x,point.y);
+      continue; // Skip this point if it does not lie within the elevation map.
+    }
     //std::cout<<"index="<<index<<std::endl;
 
     auto& elevation = rawMap_.at("elevation", index);
@@ -210,6 +221,7 @@ bool ElevationMap::add_wo_transform(const pcl::PointCloud<pcl::PointXYZ>::Ptr po
       horizontalVarianceX = minHorizontalVariance_;
       horizontalVarianceY = minHorizontalVariance_;
       horizontalVarianceXY = 0.0;
+      //ROS_INFO("is not valid");
       //colorVectorToValue(point.getRGBVector3i(), color);
       continue;
     }
@@ -257,7 +269,7 @@ bool ElevationMap::add_wo_transform(const pcl::PointCloud<pcl::PointXYZ>::Ptr po
   rawMap_.setTimestamp(timestamp.toNSec()); // Point cloud stores time in microseconds.
 
   const ros::WallDuration duration = ros::WallTime::now() - methodStartTime;
-  ROS_INFO("Raw map has been updated with a new point cloud in %f s.", duration.toSec());
+  //ROS_INFO("Raw map has been updated with a new point cloud in %f s.", duration.toSec());
   return true;
 }
 
@@ -319,6 +331,7 @@ bool ElevationMap::fuseArea(const Eigen::Vector2d& position, const Eigen::Array2
 
 bool ElevationMap::fuse(const grid_map::Index& topLeftIndex, const grid_map::Index& size)
 {
+  ROS_INFO("ElevationMap::fuse called");
   ROS_DEBUG("Fusing elevation map...");
 
   // Nothing to do.
@@ -564,7 +577,7 @@ void ElevationMap::visibilityCleanup(const ros::Time& updatedTime)
   publishVisibilityCleanupMap();
 
   ros::WallDuration duration(ros::WallTime::now() - methodStartTime);
-  ROS_INFO("Visibility cleanup has been performed in %f s (%d points).", duration.toSec(), (int)cellPositionsToRemove.size());
+  //ROS_INFO("Visibility cleanup has been performed in %f s (%d points).", duration.toSec(), (int)cellPositionsToRemove.size());
   if(duration.toSec() > visibilityCleanupDuration_)
     ROS_WARN("Visibility cleanup duration is too high (current rate is %f).", 1.0 / duration.toSec());
 }
@@ -600,6 +613,43 @@ bool ElevationMap::publishRawElevationMap()
   return true;
 }
 
+bool ElevationMap::publishFilteredElevationMap()
+{
+  if (!hasRawMapSubscribers()) return false;
+  boost::recursive_mutex::scoped_lock scopedLock(rawMapMutex_);
+  scopedLock.unlock();
+
+  // Apply filter chain.
+  grid_map::GridMap outputMap;
+  if (!filterChain_.update(rawMap_, outputMap)) {
+    ROS_ERROR("Could not update the grid map filter chain!");
+    return false;
+  }
+  // Publish filtered output grid map.
+  grid_map_msgs::GridMap outputMessage;
+  GridMapRosConverter::toMessage(outputMap, outputMessage);
+
+  elevationMapRawPublisher_.publish(outputMessage);
+  ROS_DEBUG("Filtered Elevation map has been published.");
+  return true;
+}
+
+bool ElevationMap::publishOccupancyMap()
+{
+  if (!hasOccuMapSubscribers()) return false;
+  boost::recursive_mutex::scoped_lock scopedLock(rawMapMutex_);
+  scopedLock.unlock();
+
+  nav_msgs::OccupancyGrid occupancyGrid;
+  /*(const grid_map::GridMap& gridMap,
+                                          const std::string& layer, float dataMin, float dataMax,
+                                          nav_msgs::OccupancyGrid& occupancyGrid)
+  */
+
+  grid_map::GridMapRosConverter::toOccupancyGrid(rawMap_, "elevation", 0, 1, occupancyGrid);
+  occupancyPublisher_.publish(occupancyGrid);
+  return true;
+}
 bool ElevationMap::publishFusedElevationMap()
 {
   if (!hasFusedMapSubscribers()) return false;
@@ -710,6 +760,13 @@ bool ElevationMap::hasRawMapSubscribers() const
   if (elevationMapRawPublisher_.getNumSubscribers() < 1) return false;
   return true;
 }
+
+bool ElevationMap::hasOccuMapSubscribers() const
+{
+  if (occupancyPublisher_.getNumSubscribers() < 1) return false;
+  return true;
+}
+
 
 bool ElevationMap::hasFusedMapSubscribers() const
 {

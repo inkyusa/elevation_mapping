@@ -1,5 +1,7 @@
 #point_cloud_topic: "/r1/slam/odom/high/cloud"
 point_cloud_topic: "/r1/heightmap"
+#point_cloud_topic: "/r1/ohm"
+
 
 sensor_frame_id: "odom"
 map_frame_id: "map"
@@ -10,3 +12,7 @@ track_point_frame_id: "base_link"
 track_point_x: 0.0
 track_point_y: 0.0
 track_point_z: 0.0
+
+time_tolerance: 0.1
+enable_visibility_cleanup: false
+

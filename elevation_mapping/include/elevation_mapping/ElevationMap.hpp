@@ -10,6 +10,7 @@
 
 // Grid Map
 #include <grid_map_ros/grid_map_ros.hpp>
+#include <filters/filter_chain.h>
 
 // Eigen
 #include <Eigen/Core>
@@ -131,11 +132,23 @@ class ElevationMap
   bool publishRawElevationMap();
 
   /*!
+   * Publishes the filtered elevation map using gridmap filter plugins.
+   * @return true if successful.
+   */
+  bool publishFilteredElevationMap();
+
+  /*!
    * Publishes the fused elevation map. Takes the latest available fused elevation
    * map, does not trigger the fusion process.
    * @return true if successful.
    */
   bool publishFusedElevationMap();
+
+  /*!
+   * Publishes occupany map converted from elevation map
+   * @return true if successful.
+   */
+  bool publishOccupancyMap();
 
   /*!
    * Publishes the (latest) visibility cleanup map.
@@ -219,6 +232,13 @@ class ElevationMap
   bool hasFusedMapSubscribers() const;
 
   /*!
+   * If the occupancy map has subscribers.
+   * @return true if number of subscribers bigger then 0.
+   */
+  bool hasOccuMapSubscribers() const;
+
+
+  /*!
    * Callback method for the updates of the underlying map.
    * Updates the internal underlying map.
    * @param underlyingMap the underlying map.
@@ -289,6 +309,7 @@ class ElevationMap
   ros::Publisher elevationMapRawPublisher_;
   ros::Publisher elevationMapFusedPublisher_;
   ros::Publisher visbilityCleanupMapPublisher_;
+  ros::Publisher occupancyPublisher_;
 
   //! Mutex lock for fused map.
   boost::recursive_mutex fusedMapMutex_;
@@ -305,6 +326,9 @@ class ElevationMap
   //! Initial ros time
   ros::Time initialTime_;
 
+  //! Filter chain.
+  filters::FilterChain<grid_map::GridMap> filterChain_;
+
   //! Parameters. Are set through the ElevationMapping class.
   double minVariance_;
   double maxVariance_;
@@ -316,6 +340,7 @@ class ElevationMap
   bool enableVisibilityCleanup_;
   double visibilityCleanupDuration_;
   double scanningDuration_;
+  std::string filterChainParametersName_;
 };
 
 } /* namespace */
