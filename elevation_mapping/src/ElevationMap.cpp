@@ -43,7 +43,7 @@ ElevationMap::ElevationMap(ros::NodeHandle nodeHandle)
 
   elevationMapRawPublisher_ = nodeHandle_.advertise<grid_map_msgs::GridMap>("elevation_map_raw", 1);
   elevationMapFusedPublisher_ = nodeHandle_.advertise<grid_map_msgs::GridMap>("elevation_map", 1);
-  occupancyPublisher_ = nodeHandle_.advertise<nav_msgs::OccupancyGrid>("my_occupancy", 1);
+  occupancyPublisher_ = nodeHandle_.advertise<nav_msgs::OccupancyGrid>("/r1/ohm/costmap2d", 1); //Warning! topic hard-coding just for test.
   if (!underlyingMapTopic_.empty()) underlyingMapSubscriber_ =
       nodeHandle_.subscribe(underlyingMapTopic_, 1, &ElevationMap::underlyingMapCallback, this);
   // TODO if (enableVisibilityCleanup_) when parameter cleanup is ready.
