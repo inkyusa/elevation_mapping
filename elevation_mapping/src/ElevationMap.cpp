@@ -168,7 +168,7 @@ bool ElevationMap::add(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud, 
   return true;
 }
 
-bool ElevationMap::add_wo_transform(const pcl::PointCloud<pcl::PointXYZ>::Ptr pointCloud, Eigen::VectorXf& pointCloudVariances, const ros::Time& timestamp)
+bool ElevationMap::add(const pcl::PointCloud<pcl::PointXYZ>::Ptr pointCloud, Eigen::VectorXf& pointCloudVariances, const ros::Time& timestamp)
 {
   if (pointCloud->size() != pointCloudVariances.size()) {
     ROS_ERROR("ElevationMap::add: Size of point cloud (%i) and variances (%i) do not agree.",

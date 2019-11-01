@@ -75,7 +75,7 @@ class ElevationMap
    * @param timeStamp the time of the input point cloud.
    * @return true if successful.
    */
-  bool add_wo_transform(const pcl::PointCloud<pcl::PointXYZ>::Ptr pointCloud, Eigen::VectorXf& pointCloudVariances, 
+  bool add(const pcl::PointCloud<pcl::PointXYZ>::Ptr pointCloud, Eigen::VectorXf& pointCloudVariances, 
     const ros::Time& timestamp);
 
   /*!

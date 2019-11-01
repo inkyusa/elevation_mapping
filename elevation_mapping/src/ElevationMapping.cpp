@@ -332,7 +332,7 @@ void ElevationMapping::pointCloudCallback(
   //ROS_INFO("lastPointCloudUpdateTime_.toSec()=%f",lastPointCloudUpdateTime_.toSec());
   // Add point cloud to elevation map.
   //if (!map_.add(pointCloudProcessed, measurementVariances, lastPointCloudUpdateTime_, Eigen::Affine3d(sensorProcessor_->transformationSensorToMap_))) {
-  if (!map_.add_wo_transform(pointCloud, measurementVariances, lastPointCloudUpdateTime_)) {
+  if (!map_.add(pointCloud, measurementVariances, lastPointCloudUpdateTime_)) {
     ROS_ERROR("Adding point cloud to elevation map failed.");
     resetMapUpdateTimer();
     return;
